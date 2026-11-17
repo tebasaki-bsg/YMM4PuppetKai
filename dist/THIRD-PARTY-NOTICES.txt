@@ -1,0 +1,14 @@
+﻿THIRD-PARTY NOTICES（パペット変形改）
+
+■ 配布物に含めていないもの
+- Vortice.Windows（MIT）、SharpGen.Runtime（MIT）、.NET（MIT）、Newtonsoft.Json（MIT）
+  YMM4 に同梱されているものを使います。このプラグインの配布物には含めていません。
+
+■ 参考にしたもの（コードは含みません）
+- Schaefer, McPhail, Warren (2006) "Image Deformation Using Moving Least Squares"
+- Igarashi, Moscovich, Hughes (2005) "As-Rigid-As-Possible Shape Manipulation"
+- Sorkine, Alexa (2007) "As-Rigid-As-Possible Surface Modeling"
+- Peng et al. (2018) "Anderson Acceleration for Geometry Optimization and Physics Simulation"
+- Cuthill, McKee (1969) "Reducing the Bandwidth of Sparse Symmetric Matrices"
+- Microsoft Docs: Direct2D カスタムエフェクトの頂点シェーダー
+- YMM4 本体のパペット変形（routersys 氏、MIT）の動き（コードは使っていません）

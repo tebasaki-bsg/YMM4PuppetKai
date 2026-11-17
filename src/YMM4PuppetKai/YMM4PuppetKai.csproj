@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <DisableTransitiveFrameworkReferenceDownloads>true</DisableTransitiveFrameworkReferenceDownloads>
+    <UseWPF>false</UseWPF>
+    <AssemblyName>YMM4PuppetKai</AssemblyName>
+    <RootNamespace>YMM4PuppetKai</RootNamespace>
+    <Version>0.2.0</Version>
+    <Authors>Tebasaki</Authors>
+    <Copyright>Copyright (c) 2026 Tebasaki</Copyright>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <Deterministic>true</Deterministic>
+    <PathMap>$(MSBuildProjectDirectory)=YMM4PuppetKai</PathMap>
+    <NoWarn>$(NoWarn);CA1416;CS8618</NoWarn>
+    <YMM4DirPath Condition="'$(YMM4DirPath)' == ''">/home/claude/ymm4ref/</YMM4DirPath>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../PuppetKai.Core/*.cs" Link="Core/%(Filename)%(Extension)" />
+    <EmbeddedResource Include="Shaders/*.hlsl" LogicalName="YMM4PuppetKai.Shaders.%(Filename)%(Extension)" />
+  </ItemGroup>
+  <ItemGroup>
+    <Reference Include="$(YMM4DirPath)YukkuriMovieMaker.Plugin.dll"><Private>false</Private></Reference>
+    <Reference Include="$(YMM4DirPath)YukkuriMovieMaker.Controls.dll"><Private>false</Private></Reference>
+    <Reference Include="$(YMM4DirPath)Vortice.Direct2D1.dll"><Private>false</Private></Reference>
+    <Reference Include="$(YMM4DirPath)Vortice.DirectX.dll"><Private>false</Private></Reference>
+    <Reference Include="$(YMM4DirPath)Vortice.DXGI.dll"><Private>false</Private></Reference>
+    <Reference Include="$(YMM4DirPath)Vortice.Mathematics.dll"><Private>false</Private></Reference>
+    <Reference Include="$(YMM4DirPath)Vortice.D3DCompiler.dll"><Private>false</Private></Reference>
+    <Reference Include="$(YMM4DirPath)SharpGen.Runtime.dll"><Private>false</Private></Reference>
+    <Reference Include="$(YMM4DirPath)SharpGen.Runtime.COM.dll"><Private>false</Private></Reference>
+    <Reference Include="$(YMM4DirPath)Newtonsoft.Json.dll"><Private>false</Private></Reference>
+    <Reference Include="$(YMM4DirPath)PresentationCore.dll"><Private>false</Private></Reference>
+    <Reference Include="$(YMM4DirPath)PresentationFramework.dll"><Private>false</Private></Reference>
+    <Reference Include="$(YMM4DirPath)WindowsBase.dll"><Private>false</Private></Reference>
+    <Reference Include="$(YMM4DirPath)System.Xaml.dll"><Private>false</Private></Reference>
+  </ItemGroup>
+  <!-- 参照パックの WindowsBase（型転送用）は YMM4 の WindowsBase とぶつかるので外す -->
+  <Target Name="RemoveRefPackWindowsBase" AfterTargets="ResolveTargetingPackAssets">
+    <ItemGroup>
+      <Reference Remove="@(Reference)" Condition="'%(Filename)' == 'WindowsBase' and '%(Reference.FrameworkReferenceName)' != ''" />
+    </ItemGroup>
+  </Target>
+</Project>
