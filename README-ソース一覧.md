@@ -1,6 +1,6 @@
 # パペット変形改（YMM4PuppetKai）ソース一覧
 
-- 版：**v1.0.0**（2026-11-23。公開版。作品ID nc516642 を `PuppetKaiEffect` の `[PluginDetails]` 属性に付け、README を公開向けに書き直した。機能は v0.2.0 と同じで、v0.2.0 は YMM4 v4.57.0.1 Lite 上で確認済み。作品IDの表示は YMM4 上での確認待ち）
+- 版：**v1.0.0**（2026-11-23。公開版。作品ID nc516642 を `PuppetKaiEffect` の `[PluginDetails]` 属性に付け、README を公開向けに書き直した。機能は v0.2.0 と同じで、v0.2.0 は YMM4 v4.57.0.1 Lite 上で確認済み。2026-11-23 に YMM4 上で作品IDの表示・v0.2.0 のプロジェクトの読み込み・README を確認済み）
 - ユーザーのパソコンの git のフォルダー（`Documents\YMM関係\YMM4PuppetKai\`、GitHub の tebasaki-bsg/YMM4PuppetKai）と同じ内容です（仕様書の写しはそちらでは `docs/`）。
 - この `claude/source/YMM4PuppetKai/` 以下は、いちばん新しくビルドした版のソースです。ビルドするたびに丸ごと入れ替えます（古い版は残しません）。フォルダの形は作業用のフォルダと同じです。
 - 仕様書は Claude Docs の「パペット変形改（YMM4）仕様書（たたき台）」が正本です。このプロジェクトには写しを `claude/specs/YMM4PuppetKai-仕様書.md` に置いています。
@@ -11,6 +11,7 @@
 - `Directory.Build.props` は各自の設定ではなく、言語の版・Nullable・unsafe の共通設定なので入れています。YMM4 のフォルダは csproj の `YMM4DirPath`（ビルドのときに `-p:YMM4DirPath="C:\YMM4\"` で渡す。末尾の `\` を忘れずに）。
 - ビルド：`dotnet build src/YMM4PuppetKai/YMM4PuppetKai.csproj -c Release -p:YMM4DirPath=…`（Linux でも可。WPF の DLL も YMM4 のフォルダから参照）。できた DLL と `dist/` の txt を `YMM4PuppetKai/` フォルダに入れて zip にし、拡張子を `.ymme` にします。
 - テスト：`dotnet run --project tests/PuppetKai.Tests -c Release`（30 件。YMM4 に依存しない計算部分 `PuppetKai.Core`）。
+- `README.md` は GitHub のリポジトリのトップに出る説明（利用者向けの説明と開発者向けのビルド方法）。配布物の説明は `dist/README.txt`。`LICENSE`・`THIRD-PARTY-NOTICES.md` はリポジトリのトップ用（高速PSD図形と同じ位置）で、`dist/` の txt は同じ内容の配布物用。
 - 構成：`PuppetKai.Core`（輪郭・網目・MLS・ARAP・ボーン。YMM4 に依存しない）を、`YMM4PuppetKai.csproj` がソースのまま取り込み、DLL を1つにしています。
 
 ## ファイル（SHA-256 の先頭12文字）
@@ -18,6 +19,9 @@
 | ファイル | 大きさ（バイト） | SHA-256 |
 |---|---:|---|
 | `Directory.Build.props` | 278 | `b332144931c5` |
+| `LICENSE` | 1065 | `ef29adbac208` |
+| `README.md` | 12157 | `6fa7ac7cb05b` |
+| `THIRD-PARTY-NOTICES.md` | 1986 | `f0b696c68833` |
 | `dist/LICENSE.txt` | 1089 | `e5c155c2603a` |
 | `dist/README.txt` | 7388 | `5aa88ec03015` |
 | `dist/THIRD-PARTY-NOTICES.txt` | 967 | `712428a8edd6` |
