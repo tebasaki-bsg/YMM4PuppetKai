@@ -1,6 +1,7 @@
 # パペット変形改（YMM4PuppetKai）ソース一覧
 
-- 版：**v0.2.0**（2026-11-14 共有。YMM4 v4.57.0.1 Lite 上で確認済み）
+- 版：**v1.0.0**（2026-11-23。公開版。作品ID nc516642 を `PuppetKaiEffect` の `[PluginDetails]` 属性に付け、README を公開向けに書き直した。機能は v0.2.0 と同じで、v0.2.0 は YMM4 v4.57.0.1 Lite 上で確認済み。作品IDの表示は YMM4 上での確認待ち）
+- ユーザーのパソコンの git のフォルダー（`Documents\YMM関係\YMM4PuppetKai\`、GitHub の tebasaki-bsg/YMM4PuppetKai）と同じ内容です（仕様書の写しはそちらでは `docs/`）。
 - この `claude/source/YMM4PuppetKai/` 以下は、いちばん新しくビルドした版のソースです。ビルドするたびに丸ごと入れ替えます（古い版は残しません）。フォルダの形は作業用のフォルダと同じです。
 - 仕様書は Claude Docs の「パペット変形改（YMM4）仕様書（たたき台）」が正本です。このプロジェクトには写しを `claude/specs/YMM4PuppetKai-仕様書.md` に置いています。
 - 入れていないもの：
@@ -18,7 +19,7 @@
 |---|---:|---|
 | `Directory.Build.props` | 278 | `b332144931c5` |
 | `dist/LICENSE.txt` | 1089 | `e5c155c2603a` |
-| `dist/README.txt` | 3873 | `68beb8386bc9` |
+| `dist/README.txt` | 7388 | `5aa88ec03015` |
 | `dist/THIRD-PARTY-NOTICES.txt` | 967 | `712428a8edd6` |
 | `src/PuppetKai.Core/AlphaOutline.cs` | 10335 | `7319ae3e0f9c` |
 | `src/PuppetKai.Core/ArapSolver.cs` | 15649 | `fef6ae7e2fdb` |
@@ -37,9 +38,9 @@
 | `src/YMM4PuppetKai/KaiProcessor.cs` | 12126 | `4d0baae78be2` |
 | `src/YMM4PuppetKai/KaiStats.cs` | 3717 | `cd7b124a757c` |
 | `src/YMM4PuppetKai/Models.cs` | 10138 | `bab714cd9753` |
-| `src/YMM4PuppetKai/PuppetKaiEffect.cs` | 4406 | `b26ada12de77` |
+| `src/YMM4PuppetKai/PuppetKaiEffect.cs` | 4430 | `fa74e3845c7f` |
 | `src/YMM4PuppetKai/Shaders/MeshPS.hlsl` | 288 | `e82d764f8054` |
 | `src/YMM4PuppetKai/Shaders/MeshVS.hlsl` | 1021 | `fb506a4af76b` |
-| `src/YMM4PuppetKai/YMM4PuppetKai.csproj` | 2842 | `012315c2bed7` |
+| `src/YMM4PuppetKai/YMM4PuppetKai.csproj` | 2842 | `dcd5c84b08ee` |
 | `tests/PuppetKai.Tests/Program.cs` | 22678 | `f71133e00dfd` |
 | `tests/PuppetKai.Tests/PuppetKai.Tests.csproj` | 273 | `6edae39855e2` |

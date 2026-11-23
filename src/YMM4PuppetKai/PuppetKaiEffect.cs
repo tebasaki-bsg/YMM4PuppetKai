@@ -13,7 +13,7 @@ using YukkuriMovieMaker.Plugin.Effects;
 namespace YMM4PuppetKai;
 
 /// <summary>パペット変形改（映像エフェクト。表示名は「改パペット変形」）。</summary>
-[PluginDetails(AuthorName = "Tebasaki")]
+[PluginDetails(AuthorName = "Tebasaki", ContentId = "nc516642")]
 [VideoEffect("改パペット変形", new[] { "加工" }, new[] { "パペット", "ピン", "ボーン", "切れ込み", "変形", "puppet" }, isEffectItemSupported: true, isAviUtlSupported: false)]
 public sealed class PuppetKaiEffect : VideoEffectBase
 {
