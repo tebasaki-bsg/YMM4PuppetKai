@@ -10,8 +10,38 @@ namespace PuppetKai.Core;
 /// </summary>
 public sealed class AlphaOutline
 {
+    /// <summary>いちばん細かい段階（段階 0）の、外側に広げる幅（画素）。</summary>
     public const int Dilation = 2;
-    public const double SimplifyTolerance = 0.75;
+    /// <summary>いちばん細かい段階の、折れ線を間引く基準（画素）。v1.0.0 までは 0.75 で、画素の境目の斜めの階段（ずれ約 0.71）が
+    /// 間引かれず、輪郭の細かい画像で網目の三角形が上限を超えていた。</summary>
+    public const double SimplifyTolerance = 1.5;
+
+    /// <summary>この面積（画素）以下の不透明なかたまりを「小さな島」として扱う（ほぼ透明な点・消し残りなど）。</summary>
+    public const int SmallIslandPixels = 64;
+
+    /// <summary>粗さの段階：(間引く基準, 大きなかたまりを広げる幅, 小さな島を広げる幅)。
+    /// 広げる幅は間引く基準より 0.5 画素以上大きくし、間引いても不透明な画素が輪郭の外に出ないようにする。
+    /// 小さな島は大きく広げて近くの島どうしをまとめ、島の数（＝輪郭の数）を減らす。</summary>
+    static readonly (double Tol, int Big, int Small)[] Levels =
+    {
+        (1.5, 2, 2), (2.5, 3, 6), (4, 5, 12), (6.5, 8, 24), (10, 12, 48), (16, 18, 96),
+    };
+    public static int MaxLevel => Levels.Length - 1;
+    /// <summary>粗さの段階（0 がいちばん細かい）。</summary>
+    public int Level { get; }
+
+    // 粗い段階を作り直すための元の情報（不透明かどうかと、小さな島の印）
+    readonly Source? source;
+    AlphaOutline? coarser;
+    bool coarserBuilt;
+
+    sealed class Source
+    {
+        public required byte[] Mask;   // 0：透明、1：大きなかたまり、2：小さな島（段階 1 以上で使う。最初は 0 か 1）
+        public required int Width, Height;
+        public required float OriginX, OriginY, PixelSize;
+        public bool Labeled;
+    }
 
     public int Width { get; }
     public int Height { get; }
@@ -34,9 +64,9 @@ public sealed class AlphaOutline
         public Edge(Vector2 a, Vector2 b) { X0 = a.X; Y0 = a.Y; X1 = b.X; Y1 = b.Y; }
     }
 
-    AlphaOutline(int w, int h, List<Vector2[]> loops, long filled)
+    AlphaOutline(int w, int h, List<Vector2[]> loops, long filled, int level, Source? source)
     {
-        Width = w; Height = h; Loops = loops; FilledPixels = filled;
+        Width = w; Height = h; Loops = loops; FilledPixels = filled; Level = level; this.source = source;
         var list = new List<Edge>();
         foreach (var loop in loops)
             for (int i = 0; i < loop.Length; i++)
@@ -92,18 +122,76 @@ public sealed class AlphaOutline
         => Build(alpha, width, height, -width / 2f, -height / 2f, 1f);
 
     /// <summary>
-    /// α 値から輪郭を作る。画素 (x, y) の左上の角が (originX + x·pixelSize, originY + y·pixelSize) になる座標で返す。
+    /// α 値から輪郭を作る（いちばん細かい段階）。画素 (x, y) の左上の角が (originX + x·pixelSize, originY + y·pixelSize) になる座標で返す。
     /// </summary>
     public static AlphaOutline Build(ReadOnlySpan<byte> alpha, int width, int height, float originX, float originY, float pixelSize)
     {
-        int r = Dilation;
-        int W = width + 2 * r + 2, H = height + 2 * r + 2; // 周りに余白（広げる分＋1）
-        int ox = r + 1, oy = r + 1;
-        var m = new bool[W * H];
+        var mask = new byte[width * height];
+        for (int i = 0; i < mask.Length; i++) if (alpha[i] != 0) mask[i] = 1;
+        var src = new Source { Mask = mask, Width = width, Height = height, OriginX = originX, OriginY = originY, PixelSize = pixelSize };
+        return BuildLevel(src, 0);
+    }
+
+    /// <summary>
+    /// 1段階粗い輪郭（間引きを粗くし、外側に広げる幅も大きくする。小さな島はさらに広げて近くのものとまとめる）。
+    /// 網目の三角形が上限を超えるときに使う。いちばん粗い段階なら null。一度作ったものは使い回す。
+    /// </summary>
+    public AlphaOutline? Coarser()
+    {
+        if (coarserBuilt) return coarser;
+        coarserBuilt = true;
+        if (source == null || Level >= MaxLevel) return null;
+        lock (source)
+        {
+            if (!source.Labeled) { MarkSmallIslands(source.Mask, source.Width, source.Height); source.Labeled = true; }
+        }
+        coarser = BuildLevel(source, Level + 1);
+        return coarser;
+    }
+
+    static AlphaOutline BuildLevel(Source src, int level)
+    {
+        var (tol, rBig, rSmall) = Levels[level];
+        if (!src.Labeled) rSmall = rBig;   // 段階 0：小さな島も同じ幅
+        int width = src.Width, height = src.Height;
+        int pad = Math.Max(rBig, rSmall) + 1;
+        int W = width + 2 * pad, H = height + 2 * pad;
+        var big = new bool[W * H];
+        var small = rSmall != rBig ? new bool[W * H] : big;
         for (int y = 0; y < height; y++)
             for (int x = 0; x < width; x++)
-                if (alpha[y * width + x] != 0) m[(y + oy) * W + (x + ox)] = true;
-        // 正方形で広げる（横 → 縦）
+            {
+                byte v = src.Mask[y * width + x];
+                if (v == 1) big[(y + pad) * W + (x + pad)] = true;
+                else if (v == 2) small[(y + pad) * W + (x + pad)] = true;
+            }
+        var d = Dilate(big, W, H, rBig);
+        if (!ReferenceEquals(small, big))
+        {
+            var ds = Dilate(small, W, H, rSmall);
+            for (int i = 0; i < d.Length; i++) d[i] |= ds[i];
+        }
+        long filled = 0;
+        for (int i = 0; i < d.Length; i++) if (d[i]) filled++;
+
+        var loops = TraceLoops(d, W, H);
+        var result = new List<Vector2[]>(loops.Count);
+        float ps = src.PixelSize;
+        foreach (var loop in loops)
+        {
+            var simp = SimplifyClosed(loop, tol);
+            if (simp.Count < 3) continue;
+            var arr = new Vector2[simp.Count];
+            for (int i = 0; i < arr.Length; i++)
+                arr[i] = new Vector2(src.OriginX + (simp[i].X - pad) * ps, src.OriginY + (simp[i].Y - pad) * ps);
+            result.Add(arr);
+        }
+        return new AlphaOutline(width, height, result, (long)Math.Round(filled * (double)ps * ps), level, src);
+    }
+
+    /// <summary>正方形で r 画素広げる（横 → 縦）。</summary>
+    static bool[] Dilate(bool[] m, int W, int H, int r)
+    {
         var t = new bool[W * H];
         for (int y = 0; y < H; y++)
         {
@@ -121,7 +209,6 @@ public sealed class AlphaOutline
             }
         }
         var d = new bool[W * H];
-        long filled = 0;
         for (int x = 0; x < W; x++)
         {
             int run = -1;
@@ -137,20 +224,40 @@ public sealed class AlphaOutline
                 if (run >= 0 && run - y <= r) d[y * W + x] = true;
             }
         }
-        for (int i = 0; i < d.Length; i++) if (d[i]) filled++;
+        return d;
+    }
 
-        var loops = TraceLoops(d, W, H);
-        var result = new List<Vector2[]>(loops.Count);
-        foreach (var loop in loops)
+    /// <summary>不透明な画素のかたまり（8連結）のうち、面積が SmallIslandPixels 以下のものの印を 2 にする。</summary>
+    static void MarkSmallIslands(byte[] mask, int w, int h)
+    {
+        var label = new int[mask.Length];
+        var stack = new Stack<int>();
+        var members = new List<int>();
+        int next = 0;
+        for (int start = 0; start < mask.Length; start++)
         {
-            var simp = SimplifyClosed(loop, SimplifyTolerance);
-            if (simp.Count < 3) continue;
-            var arr = new Vector2[simp.Count];
-            for (int i = 0; i < arr.Length; i++)
-                arr[i] = new Vector2(originX + (simp[i].X - ox) * pixelSize, originY + (simp[i].Y - oy) * pixelSize);
-            result.Add(arr);
+            if (mask[start] == 0 || label[start] != 0) continue;
+            next++;
+            members.Clear();
+            label[start] = next; stack.Push(start);
+            bool tooBig = false;
+            while (stack.Count > 0)
+            {
+                int i = stack.Pop();
+                if (!tooBig) { members.Add(i); if (members.Count > SmallIslandPixels) tooBig = true; }
+                int x = i % w, y = i / w;
+                for (int dy = -1; dy <= 1; dy++)
+                    for (int dx = -1; dx <= 1; dx++)
+                    {
+                        int nx = x + dx, ny = y + dy;
+                        if ((dx | dy) == 0 || nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+                        int j = ny * w + nx;
+                        if (mask[j] == 0 || label[j] != 0) continue;
+                        label[j] = next; stack.Push(j);
+                    }
+            }
+            if (!tooBig) foreach (int i in members) mask[i] = 2;
         }
-        return new AlphaOutline(width, height, result, (long)Math.Round(filled * (double)pixelSize * pixelSize));
     }
 
     static readonly int[] DX = { 1, 0, -1, 0 };

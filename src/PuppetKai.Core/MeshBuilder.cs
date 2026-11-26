@@ -16,18 +16,36 @@ public static class MeshBuilder
     public static PuppetMesh? Build(AlphaOutline outline, IReadOnlyList<CutSegment> cuts, int maxTriangles = MaxTriangles)
     {
         if (outline.IsEmpty) return null;
-        double area = outline.FilledPixels;
-        float s = (float)Math.Max(MinSpacing, Math.Sqrt(area / (0.433 * Math.Min(maxTriangles, TargetTriangles))));
         var usable = cuts.Where(c => Vector2.DistanceSquared(c.Start, c.End) > 0.01f).ToList();
-        for (int attempt = 0; attempt < 8; attempt++)
+        // 三角形が上限を超えるときは、まず輪郭のほうを粗くする（v1.0.1）。
+        // 内側の間隔だけを広げると、縁だけ細かく内側が粗いいびつな網目になり、連立方程式の分解がとても重くなる
+        // （輪郭の細かい 1400×1400 の画像で、間隔 40px・三角形 6,708 個・分解 11.9 秒になった）。
+        var o = outline;
+        while (true)
         {
-            var mesh = BuildWithSpacing(outline, usable, s);
+            // 輪郭の点だけで上限の 3/4 を超えるなら、網目を作るまでもなく超える（作ると何秒もかかる）ので先に粗くする
+            if (o.Loops.Sum(l => l.Length) > maxTriangles * 3 / 4 && o.Coarser() is { IsEmpty: false } coarse) { o = coarse; continue; }
+            var mesh = BuildWithSpacing(o, usable, BaseSpacing(o, maxTriangles));
             if (mesh == null) return null;
             if (mesh.TriangleCount <= maxTriangles) return mesh;
-            s *= 1.12f;
+            var next = o.Coarser();
+            if (next == null || next.IsEmpty) break;
+            o = next;
         }
-        return BuildWithSpacing(outline, usable, s);
+        // いちばん粗い輪郭でも超えるときだけ、内側の間隔を広げる
+        float s = BaseSpacing(o, maxTriangles);
+        for (int attempt = 0; attempt < 12; attempt++)
+        {
+            s *= 1.12f;
+            var mesh = BuildWithSpacing(o, usable, s);
+            if (mesh == null) return null;
+            if (mesh.TriangleCount <= maxTriangles) return mesh;
+        }
+        return BuildWithSpacing(o, usable, s * 1.12f);
     }
+
+    static float BaseSpacing(AlphaOutline o, int maxTriangles)
+        => (float)Math.Max(MinSpacing, Math.Sqrt(o.FilledPixels / (0.433 * Math.Min(maxTriangles, TargetTriangles))));
 
     sealed class SegmentGrid
     {

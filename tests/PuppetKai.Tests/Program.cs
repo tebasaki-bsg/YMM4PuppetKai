@@ -32,6 +32,8 @@ static class Program
         TestIdentity();
         TestDeterminism();
         TestPentagonSamples();
+        TestDetailedOutline();
+        TestSpeckField();
         if (args.Contains("--bench")) Bench(args);
         if (args.Contains("--tol")) { TolBench(); return 0; }
         Console.WriteLine($"\n{passed} passed, {failed} failed");
@@ -63,6 +65,55 @@ static class Program
                 if (inside) a[y * w + x] = 255;
             }
         return a;
+    }
+
+    /// <summary>透過のある人型（頭・首・胴・両腕・両脚）。soft なら縁を1画素ぼかす。</summary>
+    static byte[] Human(int W, int H, bool soft)
+    {
+        var a = new byte[W * H];
+        float cx = W / 2f;
+        static float Seg(Vector2 p, Vector2 a, Vector2 b, float r)
+        { var ab = b - a; float t = Math.Clamp(Vector2.Dot(p - a, ab) / ab.LengthSquared(), 0, 1); return Vector2.Distance(p, a + ab * t) - r; }
+        for (int y = 0; y < H; y++)
+            for (int x = 0; x < W; x++)
+            {
+                var p = new Vector2(x + 0.5f, y + 0.5f);
+                float d = Vector2.Distance(p, new(cx, 130)) - 80;
+                d = Math.Min(d, Seg(p, new(cx, 200), new(cx, 240), 28));
+                d = Math.Min(d, Seg(p, new(cx, 300), new(cx, 520), 95));
+                d = Math.Min(d, Seg(p, new(cx - 120, 290), new(cx - 190, 450), 30));
+                d = Math.Min(d, Seg(p, new(cx - 190, 450), new(cx - 200, 600), 26));
+                d = Math.Min(d, Seg(p, new(cx + 120, 290), new(cx + 190, 450), 30));
+                d = Math.Min(d, Seg(p, new(cx + 190, 450), new(cx + 200, 600), 26));
+                d = Math.Min(d, Seg(p, new(cx - 45, 600), new(cx - 55, 880), 38));
+                d = Math.Min(d, Seg(p, new(cx + 45, 600), new(cx + 55, 880), 38));
+                a[y * W + x] = (byte)((soft ? Math.Clamp(0.5f - d, 0, 1) : (d <= 0 ? 1 : 0)) * 255);
+            }
+        return a;
+    }
+
+    /// <summary>網目の三角形が覆わない、不透明な画素の数（画素の中心で判定）。</summary>
+    static int Uncovered(PuppetMesh m, byte[] alpha, int W, int H)
+    {
+        var cov = new bool[W * H];
+        for (int t = 0; t < m.TriangleCount; t++)
+        {
+            var a = m.Rest[m.Triangles[3 * t]] + new Vector2(W / 2f, H / 2f);
+            var b = m.Rest[m.Triangles[3 * t + 1]] + new Vector2(W / 2f, H / 2f);
+            var c = m.Rest[m.Triangles[3 * t + 2]] + new Vector2(W / 2f, H / 2f);
+            int x0 = Math.Max(0, (int)MathF.Floor(MathF.Min(a.X, MathF.Min(b.X, c.X)))), x1 = Math.Min(W - 1, (int)MathF.Ceiling(MathF.Max(a.X, MathF.Max(b.X, c.X))));
+            int y0 = Math.Max(0, (int)MathF.Floor(MathF.Min(a.Y, MathF.Min(b.Y, c.Y)))), y1 = Math.Min(H - 1, (int)MathF.Ceiling(MathF.Max(a.Y, MathF.Max(b.Y, c.Y))));
+            for (int y = y0; y <= y1; y++)
+                for (int x = x0; x <= x1; x++)
+                {
+                    var p = new Vector2(x + 0.5f, y + 0.5f);
+                    float d0 = Cross(b - a, p - a), d1 = Cross(c - b, p - b), d2 = Cross(a - c, p - c);
+                    if ((d0 >= 0 && d1 >= 0 && d2 >= 0) || (d0 <= 0 && d1 <= 0 && d2 <= 0)) cov[y * W + x] = true;
+                }
+        }
+        int miss = 0;
+        for (int i = 0; i < alpha.Length; i++) if (alpha[i] != 0 && !cov[i]) miss++;
+        return miss;
     }
 
     static ControlSet Controls(params (Vector2 rest, Vector2 target)[] pts)
@@ -275,6 +326,62 @@ static class Program
         {
             var (r, _) = Run(a, 440, 440, cuts, cs, mode);
             Dump(r, $"pentagon_{mode}");
+        }
+    }
+
+    /// <summary>
+    /// v1.0.1：縁の細かい大きな画像（斜めの縁が長い）。v1.0.0 では輪郭の点が間引かれず三角形が上限を超え、
+    /// 内側だけ粗いいびつな網目になって分解に何秒もかかった。上限を守り、網目が素直（帯が細い）で、不透明な画素を覆うこと。
+    /// </summary>
+    static void TestDetailedOutline()
+    {
+        int W = 1400, H = 1400;
+        var a = new byte[W * H];
+        var c = new Vector2(W / 2f, H / 2f);
+        for (int y = 0; y < H; y++)
+            for (int x = 0; x < W; x++)
+            {
+                var p = new Vector2(x + 0.5f, y + 0.5f) - c;
+                double ang = Math.Atan2(p.Y, p.X);
+                // 64 本のとげのある星（縁がすべて斜めで、ぎざぎざが長い）
+                double r = 420 + 180 * Math.Abs(Math.Sin(ang * 32)) + 25 * Math.Sin(ang * 7);
+                if (p.Length() < r) a[y * W + x] = 255;
+            }
+        var sw = Stopwatch.StartNew();
+        var d = new PuppetDeformer();
+        d.SetAlpha(a, W, H);
+        var cs = Controls((V(0, 0), V(0, 0)), (V(400, 0), V(430, 60)), (V(-400, 0), V(-400, 0)));
+        var r0 = d.Deform(new List<CutSegment>(), cs, DeformMode.Rigid, 2)!;
+        double ms = sw.Elapsed.TotalMilliseconds;
+        var arap = new ArapSolver(r0.Mesh, new ControlField(r0.Mesh, cs.Rest).Attach);
+        Check(r0.Mesh.TriangleCount <= MeshBuilder.MaxTriangles, "細かい縁：三角形の上限", $"{r0.Mesh.TriangleCount} 個, 輪郭の点 {d.Outline!.Loops.Sum(l => l.Length)}");
+        Check(arap.Bandwidth < 400, "細かい縁：網目が素直（帯が細い）", $"帯 {arap.Bandwidth}");
+        Check(ms < 3000, "細かい縁：網目から1回目の変形まで 3 秒未満", $"{ms:F0}ms");
+        Check(Uncovered(r0.Mesh, a, W, H) == 0, "細かい縁：不透明な画素はすべて網目の中", Uncovered(r0.Mesh, a, W, H).ToString());
+    }
+
+    /// <summary>
+    /// v1.0.1：体の外にほぼ透明な点（α=1）が散らばった画像。輪郭が点の数だけでき、三角形が上限を超えていた。
+    /// 上限を守り、点も含めて不透明な画素をすべて覆う（描かれる）こと。点の少ない画像は段階 0 のまま。
+    /// </summary>
+    static void TestSpeckField()
+    {
+        int W = 600, H = 920;
+        var human = Human(W, H, true);
+        foreach (int count in new[] { 200, 20000 })
+        {
+            var a = (byte[])human.Clone();
+            var rnd = new Random(1);
+            for (int i = 0; i < count; i++) { int x = rnd.Next(W), y = rnd.Next(H); if (a[y * W + x] == 0) a[y * W + x] = 1; }
+            var sw = Stopwatch.StartNew();
+            var d = new PuppetDeformer();
+            d.SetAlpha(a, W, H);
+            var cs = Controls((V(0, -330), V(0, -330)), (V(190, 0), V(230, -40)), (V(-150, 380), V(-150, 380)));
+            var r = d.Deform(new List<CutSegment>(), cs, DeformMode.Rigid, 2)!;
+            double ms = sw.Elapsed.TotalMilliseconds;
+            Check(r.Mesh.TriangleCount <= MeshBuilder.MaxTriangles, $"点 {count} 個：三角形の上限", $"{r.Mesh.TriangleCount} 個, 部分 {r.Mesh.ComponentCount}, {ms:F0}ms");
+            Check(Uncovered(r.Mesh, a, W, H) == 0, $"点 {count} 個：点も含めて網目の中（描かれる）", Uncovered(r.Mesh, a, W, H).ToString());
+            Check(ms < 1000, $"点 {count} 個：網目から1回目の変形まで 1 秒未満", $"{ms:F0}ms");
         }
     }
 
